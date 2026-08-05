@@ -475,7 +475,7 @@ func TestConnectionCloseValidationAndCancellation(t *testing.T) {
 func TestManifest(t *testing.T) {
 	t.Parallel()
 	spec := Manifest().Spec()
-	if spec.ID != "github.com/StevenBuglione/spice/starter/websocket" ||
+	if spec.ID != "github.com/spice-framework/spice/starter/websocket" ||
 		!slices.Equal(spec.Capabilities, []string{
 			"web.websocket.client",
 			"web.websocket.server",

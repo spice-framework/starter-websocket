@@ -10,7 +10,7 @@ import (
 
 	nativews "github.com/coder/websocket"
 
-	"github.com/StevenBuglione/spice/lifecycle"
+	"github.com/spice-framework/spice/lifecycle"
 )
 
 // Dial opens one explicit outbound WebSocket connection.
