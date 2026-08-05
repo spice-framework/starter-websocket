@@ -31,12 +31,23 @@ func Dial(
 	if observerErr := validateObservers(observers); observerErr != nil {
 		return nil, nil, nil, observerErr
 	}
-	native, response, err := nativews.Dial(
+	handshakeContext, cancel := context.WithTimeout(
 		ctx,
+		normalized.handshakeTimeout,
+	)
+	defer cancel()
+	native, response, err := nativews.Dial(
+		handshakeContext,
 		normalized.url,
 		&normalized.dial,
 	)
 	if err != nil {
+		if cause := context.Cause(handshakeContext); cause != nil {
+			return nil, response, nil, fmt.Errorf(
+				"dial WebSocket: handshake failed: %w",
+				cause,
+			)
+		}
 		return nil, response, nil, errors.New(
 			"dial WebSocket: handshake failed",
 		)

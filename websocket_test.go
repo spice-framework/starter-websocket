@@ -15,6 +15,7 @@ import (
 	"time"
 
 	nativews "github.com/coder/websocket"
+	spicestarter "github.com/spice-framework/spice/annotation/sdk/starter"
 )
 
 func TestHandlerAndClientExchangeBoundedMessages(t *testing.T) {
@@ -22,8 +23,9 @@ func TestHandlerAndClientExchangeBoundedMessages(t *testing.T) {
 	observer := &recordingObserver{}
 	handler, err := NewHandler(
 		ServerConfig{
-			AllowInsecure: true,
-			Subprotocols:  []string{"petclinic.v1"},
+			AllowInsecure:  true,
+			AllowAnonymous: true,
+			Subprotocols:   []string{"petclinic.v1"},
 		},
 		func(ctx context.Context, connection *Connection) error {
 			messageType, payload, readErr := connection.Read(ctx)
@@ -44,6 +46,7 @@ func TestHandlerAndClientExchangeBoundedMessages(t *testing.T) {
 		ClientConfig{
 			URL:             websocketURL(server.URL),
 			AllowInsecure:   true,
+			AllowAnonymous:  true,
 			Subprotocols:    []string{"petclinic.v1"},
 			MaxMessageBytes: 1024,
 		},
@@ -95,7 +98,7 @@ func TestHandlerAndClientExchangeBoundedMessages(t *testing.T) {
 func TestHandlerRequiresTLSAndRejectsCrossOrigin(t *testing.T) {
 	t.Parallel()
 	secureHandler, err := NewHandler(
-		ServerConfig{},
+		ServerConfig{AllowAnonymous: true},
 		func(context.Context, *Connection) error { return nil },
 	)
 	if err != nil {
@@ -109,11 +112,17 @@ func TestHandlerRequiresTLSAndRejectsCrossOrigin(t *testing.T) {
 	}
 
 	handler, err := NewHandler(
-		ServerConfig{AllowInsecure: true},
+		ServerConfig{AllowInsecure: true, AllowAnonymous: true},
 		func(context.Context, *Connection) error { return nil },
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	nonLoopbackRequest := httptest.NewRequest(http.MethodGet, "http://example.test/ws", nil)
+	nonLoopbackResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nonLoopbackResponse, nonLoopbackRequest)
+	if nonLoopbackResponse.Code != http.StatusUpgradeRequired {
+		t.Fatalf("non-loopback insecure response = %d", nonLoopbackResponse.Code)
 	}
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -142,6 +151,7 @@ func TestHandlerEnforcesConnectionCapacity(t *testing.T) {
 	handler, err := NewHandler(
 		ServerConfig{
 			AllowInsecure:  true,
+			AllowAnonymous: true,
 			MaxConnections: 1,
 		},
 		func(context.Context, *Connection) error {
@@ -158,8 +168,9 @@ func TestHandlerEnforcesConnectionCapacity(t *testing.T) {
 	first, firstResponse, firstCleanup, err := Dial(
 		context.Background(),
 		ClientConfig{
-			URL:           websocketURL(server.URL),
-			AllowInsecure: true,
+			URL:            websocketURL(server.URL),
+			AllowInsecure:  true,
+			AllowAnonymous: true,
 		},
 	)
 	if err != nil {
@@ -170,8 +181,9 @@ func TestHandlerEnforcesConnectionCapacity(t *testing.T) {
 	_, response, _, err := Dial(
 		context.Background(),
 		ClientConfig{
-			URL:           websocketURL(server.URL),
-			AllowInsecure: true,
+			URL:            websocketURL(server.URL),
+			AllowInsecure:  true,
+			AllowAnonymous: true,
 		},
 	)
 	if err == nil {
@@ -196,6 +208,7 @@ func TestConnectionRejectsInvalidAndOversizedWrites(t *testing.T) {
 	handler, err := NewHandler(
 		ServerConfig{
 			AllowInsecure:   true,
+			AllowAnonymous:  true,
 			MaxMessageBytes: 4,
 		},
 		func(ctx context.Context, connection *Connection) error {
@@ -213,6 +226,7 @@ func TestConnectionRejectsInvalidAndOversizedWrites(t *testing.T) {
 		ClientConfig{
 			URL:             websocketURL(server.URL),
 			AllowInsecure:   true,
+			AllowAnonymous:  true,
 			MaxMessageBytes: 4,
 		},
 	)
@@ -255,16 +269,19 @@ func TestConnectionRejectsInvalidAndOversizedWrites(t *testing.T) {
 func TestConfigurationRejectsUnsafeValues(t *testing.T) {
 	t.Parallel()
 	serverTests := []ServerConfig{
-		{AllowAnyOrigin: true, OriginPatterns: []string{"example.test"}},
-		{OriginPatterns: []string{"*"}},
-		{OriginPatterns: []string{"["}},
-		{Subprotocols: []string{"bad protocol"}},
-		{Subprotocols: []string{"same", "same"}},
-		{MaxMessageBytes: maxMessageBytes + 1},
-		{MaxConnections: maxConnections + 1},
-		{CompressionAt: 512},
-		{Compression: true, CompressionAt: 10},
-		{CloseTimeout: maxCloseTimeout + time.Second},
+		{},
+		{AllowAnonymous: true, AllowAnyOrigin: true, OriginPatterns: []string{"example.test"}},
+		{AllowAnonymous: true, OriginPatterns: []string{"*"}},
+		{AllowAnonymous: true, OriginPatterns: []string{"["}},
+		{AllowAnonymous: true, Subprotocols: []string{"bad protocol"}},
+		{AllowAnonymous: true, Subprotocols: []string{"same", "same"}},
+		{AllowAnonymous: true, MaxMessageBytes: maxMessageBytes + 1},
+		{AllowAnonymous: true, MaxConnections: maxConnections + 1},
+		{AllowAnonymous: true, CompressionAt: 512},
+		{AllowAnonymous: true, Compression: true, CompressionAt: 10},
+		{AllowAnonymous: true, CloseTimeout: maxCloseTimeout + time.Second},
+		{AllowAnonymous: true, AllowAnyOrigin: true},
+		{AllowAnonymous: true, Authenticate: func(context.Context, *http.Request) error { return nil }},
 	}
 	for index, config := range serverTests {
 		if _, err := NewHandler(
@@ -275,14 +292,14 @@ func TestConfigurationRejectsUnsafeValues(t *testing.T) {
 		}
 	}
 	if _, err := NewHandler(
-		ServerConfig{AllowInsecure: true},
+		ServerConfig{AllowInsecure: true, AllowAnonymous: true},
 		nil,
 	); err == nil {
 		t.Fatal("NewHandler(nil session handler) error = nil")
 	}
 	var typedNil *recordingObserver
 	if _, err := NewHandler(
-		ServerConfig{AllowInsecure: true},
+		ServerConfig{AllowInsecure: true, AllowAnonymous: true},
 		func(context.Context, *Connection) error { return nil },
 		typedNil,
 	); err == nil {
@@ -290,18 +307,21 @@ func TestConfigurationRejectsUnsafeValues(t *testing.T) {
 	}
 
 	clientTests := []ClientConfig{
-		{URL: "http://example.test:443/ws"},
-		{URL: "ws://example.test:80/ws"},
+		{URL: "wss://example.test:443/ws"},
+		{URL: "http://example.test:443/ws", AllowAnonymous: true},
+		{URL: "ws://example.test:80/ws", AllowInsecure: true, AllowAnonymous: true},
 		{
-			URL:           "wss://example.test:443/ws",
-			AllowInsecure: true,
+			URL:            "wss://example.test:443/ws",
+			AllowInsecure:  true,
+			AllowAnonymous: true,
 		},
 		{
 			URL: "ws://example.test:80/ws",
 			TLSConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
-			AllowInsecure: true,
+			AllowInsecure:  true,
+			AllowAnonymous: true,
 		},
 		{
 			URL: "wss://example.test:443/ws",
@@ -309,13 +329,31 @@ func TestConfigurationRejectsUnsafeValues(t *testing.T) {
 				MinVersion:         tls.VersionTLS12,
 				InsecureSkipVerify: true, //nolint:gosec // Rejection fixture.
 			},
+			AllowAnonymous: true,
 		},
 		{
 			URL: "wss://example.test:443/ws",
 			Header: http.Header{
 				"Origin": []string{"https://example.test"},
 			},
+			AllowAnonymous: true,
 		},
+		{
+			URL: "wss://example.test:443/ws",
+			Header: http.Header{
+				"Authorization": []string{"Bearer hidden"},
+			},
+			AllowAnonymous: true,
+		},
+		{
+			URL: "wss://example.test:443/ws",
+			Header: http.Header{
+				"Cookie": []string{"session=hidden"},
+			},
+			AllowAnonymous: true,
+		},
+		{URL: "wss://example.test:443/ws", AllowAnonymous: true, Authorization: "Bearer secret"},
+		{URL: "wss://example.test:443/ws", HandshakeTimeout: maxHandshakeTimeout + time.Second, AllowAnonymous: true},
 	}
 	for index, config := range clientTests {
 		if _, err := normalizeClientConfig(config); err == nil {
@@ -327,11 +365,12 @@ func TestConfigurationRejectsUnsafeValues(t *testing.T) {
 func TestClientDefaultsAreSecureAndDefensive(t *testing.T) {
 	t.Parallel()
 	headers := http.Header{
-		"Authorization": []string{"Bearer test"},
+		"X-Request-Id": []string{"request-1"},
 	}
 	normalized, err := normalizeClientConfig(ClientConfig{
-		URL:    "wss://service.example:443/events",
-		Header: headers,
+		URL:           "wss://service.example:443/events",
+		Header:        headers,
+		Authorization: "Bearer test",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -345,8 +384,11 @@ func TestClientDefaultsAreSecureAndDefensive(t *testing.T) {
 		normalized.maxMessage != defaultMaxMessageBytes {
 		t.Fatalf("normalized client = %#v", normalized)
 	}
-	headers.Set("Authorization", "changed")
+	headers.Set("X-Request-Id", "changed")
 	if normalized.dial.HTTPHeader.Get("Authorization") != "Bearer test" {
+		t.Fatal("client authorization was not installed")
+	}
+	if normalized.dial.HTTPHeader.Get("X-Request-Id") != "request-1" {
 		t.Fatal("client headers were not defensively copied")
 	}
 	sourceTLS := &tls.Config{MinVersion: tls.VersionTLS13}
@@ -372,7 +414,7 @@ func TestClientDefaultsAreSecureAndDefensive(t *testing.T) {
 		t.Fatal(err)
 	}
 	largeHeaders := http.Header{
-		"Authorization": []string{strings.Repeat("x", maxHeaderBytes)},
+		"X-Large": []string{strings.Repeat("x", maxHeaderBytes)},
 	}
 	if _, err := normalizeHeaders(largeHeaders); err == nil {
 		t.Fatal("normalizeHeaders(oversized) error = nil")
@@ -409,7 +451,7 @@ func TestConnectionCloseValidationAndCancellation(t *testing.T) {
 		t.Fatal("invalid connection Close() error = nil")
 	}
 	handler, err := NewHandler(
-		ServerConfig{AllowInsecure: true},
+		ServerConfig{AllowInsecure: true, AllowAnonymous: true},
 		func(ctx context.Context, connection *Connection) error {
 			_, _, readErr := connection.Read(ctx)
 			return readErr
@@ -423,8 +465,9 @@ func TestConnectionCloseValidationAndCancellation(t *testing.T) {
 	client, response, _, err := Dial(
 		context.Background(),
 		ClientConfig{
-			URL:           websocketURL(server.URL),
-			AllowInsecure: true,
+			URL:            websocketURL(server.URL),
+			AllowInsecure:  true,
+			AllowAnonymous: true,
 		},
 	)
 	if err != nil {
@@ -472,10 +515,33 @@ func TestConnectionCloseValidationAndCancellation(t *testing.T) {
 	}
 }
 
+func TestServerOutcomeRecognizesRedactedNormalPeerClose(t *testing.T) {
+	t.Parallel()
+	for _, status := range []StatusCode{StatusNormalClosure, StatusGoingAway} {
+		outcome, closeStatus := serverOutcome(
+			context.Background(),
+			&PeerCloseError{Status: status},
+		)
+		if outcome != OutcomeNormal || closeStatus != StatusNormalClosure {
+			t.Fatalf(
+				"serverOutcome(status %d) = (%q, %d)",
+				status,
+				outcome,
+				closeStatus,
+			)
+		}
+	}
+}
+
 func TestManifest(t *testing.T) {
 	t.Parallel()
-	spec := Manifest().Spec()
-	if spec.ID != "github.com/spice-framework/spice/starter/websocket" ||
+	manifest := Manifest()
+	spec := manifest.Spec()
+	if spec.Schema != spicestarter.Schema ||
+		spec.ID != "github.com/spice-framework/starter-websocket" ||
+		spec.Module != "github.com/spice-framework/starter-websocket" ||
+		spec.SpiceAPI != spicestarter.APIVersion ||
+		spec.Review != "docs/dependency-review.md" ||
 		!slices.Equal(spec.Capabilities, []string{
 			"web.websocket.client",
 			"web.websocket.server",
@@ -483,6 +549,20 @@ func TestManifest(t *testing.T) {
 		len(spec.Dependencies) != 1 ||
 		spec.Dependencies[0].Version != "v1.8.15" {
 		t.Fatalf("Manifest() = %#v", spec)
+	}
+	if err := manifest.Compatible(spicestarter.APIVersion, "go1.26.5"); err != nil {
+		t.Fatalf("Compatible() error = %v", err)
+	}
+	content, err := manifest.JSON()
+	if err != nil {
+		t.Fatalf("JSON() error = %v", err)
+	}
+	parsed, err := spicestarter.Parse(content)
+	if err != nil {
+		t.Fatalf("Parse(JSON()) error = %v", err)
+	}
+	if parsed.Spec().ID != spec.ID {
+		t.Fatalf("parsed ID = %q, want %q", parsed.Spec().ID, spec.ID)
 	}
 }
 

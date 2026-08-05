@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -33,6 +34,20 @@ const (
 	// StatusInternalError indicates an application handler failure.
 	StatusInternalError StatusCode = 1011
 )
+
+// PeerCloseError reports a peer's close status without retaining its
+// potentially sensitive close reason.
+type PeerCloseError struct {
+	Status StatusCode
+}
+
+// Error implements error.
+func (closeError *PeerCloseError) Error() string {
+	return fmt.Sprintf(
+		"WebSocket peer closed with status %d",
+		closeError.Status,
+	)
+}
 
 // Connection is one bounded, caller-owned WebSocket connection.
 type Connection struct {
@@ -76,7 +91,11 @@ func (connection *Connection) Read(
 	}
 	messageType, payload, err := connection.native.Read(ctx)
 	if err != nil {
-		return 0, nil, fmt.Errorf("read WebSocket message: %w", err)
+		return 0, nil, sanitizeConnectionError(
+			"read WebSocket message",
+			ctx,
+			err,
+		)
 	}
 	return MessageType(messageType), payload, nil
 }
@@ -107,7 +126,7 @@ func (connection *Connection) Write(
 		nativews.MessageType(messageType),
 		payload,
 	); err != nil {
-		return fmt.Errorf("write WebSocket message: %w", err)
+		return sanitizeConnectionError("write WebSocket message", ctx, err)
 	}
 	return nil
 }
@@ -121,7 +140,7 @@ func (connection *Connection) Ping(ctx context.Context) error {
 		return errors.New("ping WebSocket: connection is invalid")
 	}
 	if err := connection.native.Ping(ctx); err != nil {
-		return fmt.Errorf("ping WebSocket: %w", err)
+		return sanitizeConnectionError("ping WebSocket", ctx, err)
 	}
 	return nil
 }
@@ -157,9 +176,10 @@ func (connection *Connection) Close(
 			if err := connection.native.Close(
 				nativews.StatusCode(status),
 				reason,
-			); err != nil {
-				connection.closeErr = fmt.Errorf(
-					"close WebSocket: close handshake: %w",
+			); err != nil && !errors.Is(err, net.ErrClosed) {
+				connection.closeErr = sanitizeConnectionError(
+					"close WebSocket handshake",
+					context.Background(),
 					err,
 				)
 			}
@@ -183,6 +203,20 @@ func (connection *Connection) Close(
 			forceErr,
 		)
 	}
+}
+
+func sanitizeConnectionError(
+	operation string,
+	ctx context.Context,
+	err error,
+) error {
+	if cause := context.Cause(ctx); cause != nil {
+		return fmt.Errorf("%s: %w", operation, cause)
+	}
+	if status := nativews.CloseStatus(err); status != -1 {
+		return &PeerCloseError{Status: StatusCode(status)}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func (connection *Connection) closeNow() error {

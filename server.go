@@ -5,7 +5,9 @@ package websocket
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -69,9 +71,16 @@ func (handler *Handler) ServeHTTP(
 		http.Error(writer, "WebSocket handler unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if request.TLS == nil && !handler.config.allowInsecure {
+	if request.TLS == nil &&
+		(!handler.config.allowInsecure || !loopbackRequest(request)) {
 		http.Error(writer, "secure WebSocket transport required", http.StatusUpgradeRequired)
 		return
+	}
+	if handler.config.authenticate != nil {
+		if err := handler.config.authenticate(request.Context(), request); err != nil {
+			http.Error(writer, "WebSocket authentication failed", http.StatusUnauthorized)
+			return
+		}
 	}
 	select {
 	case handler.slots <- struct{}{}:
@@ -117,6 +126,21 @@ func (handler *Handler) ServeHTTP(
 	})
 }
 
+func loopbackRequest(request *http.Request) bool {
+	host := request.Host
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+	}
+	if !loopbackHost(strings.Trim(host, "[]")) {
+		return false
+	}
+	remoteHost, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	return loopbackHost(strings.Trim(remoteHost, "[]"))
+}
+
 func serverOutcome(
 	ctx context.Context,
 	handlerErr error,
@@ -125,6 +149,11 @@ func serverOutcome(
 		return OutcomeCanceled, StatusGoingAway
 	}
 	if handlerErr == nil {
+		return OutcomeNormal, StatusNormalClosure
+	}
+	var peerClose *PeerCloseError
+	if errors.As(handlerErr, &peerClose) &&
+		(peerClose.Status == StatusNormalClosure || peerClose.Status == StatusGoingAway) {
 		return OutcomeNormal, StatusNormalClosure
 	}
 	status := nativews.CloseStatus(handlerErr)

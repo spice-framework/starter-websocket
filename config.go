@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -19,22 +20,30 @@ import (
 )
 
 const (
-	defaultMaxMessageBytes = int64(1 << 20)
-	maxMessageBytes        = int64(16 << 20)
-	defaultMaxConnections  = 256
-	maxConnections         = 4096
-	maxOriginPatterns      = 32
-	maxSubprotocols        = 32
-	maxHeaderBytes         = 8 << 10
-	maxIdentityBytes       = 255
-	defaultCompressionAt   = 512
-	defaultCloseTimeout    = 5 * time.Second
-	maxCloseTimeout        = 30 * time.Second
+	defaultMaxMessageBytes  = int64(1 << 20)
+	maxMessageBytes         = int64(16 << 20)
+	defaultMaxConnections   = 256
+	maxConnections          = 4096
+	maxOriginPatterns       = 32
+	maxSubprotocols         = 32
+	maxHeaderBytes          = 8 << 10
+	maxIdentityBytes        = 255
+	maxAuthorizationBytes   = 4 << 10
+	defaultCompressionAt    = 512
+	defaultHandshakeTimeout = 10 * time.Second
+	maxHandshakeTimeout     = 30 * time.Second
+	defaultCloseTimeout     = 5 * time.Second
+	maxCloseTimeout         = 30 * time.Second
 )
 
 var tokenPattern = regexp.MustCompile(
 	"^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$",
 )
+
+// AuthenticateFunc validates one HTTP upgrade request. Returning an error
+// rejects the request with a generic response; the error text is never sent to
+// the peer or an Observer.
+type AuthenticateFunc func(context.Context, *http.Request) error
 
 // ServerConfig defines one explicit WebSocket HTTP upgrade boundary. TLS is
 // required by default and is terminated by the caller-owned HTTP server.
@@ -46,19 +55,24 @@ type ServerConfig struct {
 	Compression     bool
 	CompressionAt   int
 	CloseTimeout    time.Duration
+	Authenticate    AuthenticateFunc
 	AllowInsecure   bool
+	AllowAnonymous  bool
 	AllowAnyOrigin  bool
 }
 
 // ClientConfig defines one explicit outbound WebSocket connection.
 type ClientConfig struct {
-	URL             string
-	Header          http.Header
-	Subprotocols    []string
-	TLSConfig       *tls.Config
-	MaxMessageBytes int64
-	Compression     bool
-	AllowInsecure   bool
+	URL              string
+	Header           http.Header
+	Subprotocols     []string
+	TLSConfig        *tls.Config
+	MaxMessageBytes  int64
+	Compression      bool
+	Authorization    string
+	HandshakeTimeout time.Duration
+	AllowInsecure    bool
+	AllowAnonymous   bool
 }
 
 type normalizedServerConfig struct {
@@ -66,18 +80,23 @@ type normalizedServerConfig struct {
 	maxMessage     int64
 	maxConnections int
 	closeTimeout   time.Duration
+	authenticate   AuthenticateFunc
 	allowInsecure  bool
 }
 
 type normalizedClientConfig struct {
-	dial       nativews.DialOptions
-	url        string
-	maxMessage int64
+	dial             nativews.DialOptions
+	url              string
+	maxMessage       int64
+	handshakeTimeout time.Duration
 }
 
 func normalizeServerConfig(
 	config ServerConfig,
 ) (normalizedServerConfig, error) {
+	if err := validateServerAuthentication(config); err != nil {
+		return normalizedServerConfig{}, err
+	}
 	maximum, err := normalizeMessageLimit(config.MaxMessageBytes)
 	if err != nil {
 		return normalizedServerConfig{}, fmt.Errorf(
@@ -134,8 +153,28 @@ func normalizeServerConfig(
 		maxMessage:     maximum,
 		maxConnections: config.MaxConnections,
 		closeTimeout:   config.CloseTimeout,
+		authenticate:   config.Authenticate,
 		allowInsecure:  config.AllowInsecure,
 	}, nil
+}
+
+func validateServerAuthentication(config ServerConfig) error {
+	if config.Authenticate == nil && !config.AllowAnonymous {
+		return errors.New(
+			"construct WebSocket handler: authentication is required unless anonymous access is explicit",
+		)
+	}
+	if config.Authenticate != nil && config.AllowAnonymous {
+		return errors.New(
+			"construct WebSocket handler: authentication and anonymous access are mutually exclusive",
+		)
+	}
+	if config.AllowAnyOrigin && config.Authenticate == nil {
+		return errors.New(
+			"construct WebSocket handler: allow-any-origin requires authentication",
+		)
+	}
+	return nil
 }
 
 func normalizeClientConfig(
@@ -163,6 +202,22 @@ func normalizeClientConfig(
 	if err != nil {
 		return normalizedClientConfig{}, err
 	}
+	authorization, err := normalizeAuthorization(
+		config.Authorization,
+		config.AllowAnonymous,
+	)
+	if err != nil {
+		return normalizedClientConfig{}, err
+	}
+	if authorization != "" {
+		if normalizedHeaderBytes(headers)+len("Authorization")+len(authorization) > maxHeaderBytes {
+			return normalizedClientConfig{}, fmt.Errorf(
+				"construct WebSocket client: headers exceed %d bytes",
+				maxHeaderBytes,
+			)
+		}
+		headers.Set("Authorization", authorization)
+	}
 	tlsSelection, err := normalizeClientTLS(config.TLSConfig, parsed)
 	if err != nil {
 		return normalizedClientConfig{}, err
@@ -170,6 +225,16 @@ func normalizeClientConfig(
 	compression := nativews.CompressionDisabled
 	if config.Compression {
 		compression = nativews.CompressionNoContextTakeover
+	}
+	if config.HandshakeTimeout == 0 {
+		config.HandshakeTimeout = defaultHandshakeTimeout
+	}
+	if config.HandshakeTimeout < time.Millisecond ||
+		config.HandshakeTimeout > maxHandshakeTimeout {
+		return normalizedClientConfig{}, fmt.Errorf(
+			"construct WebSocket client: handshake timeout must be between 1ms and %s",
+			maxHandshakeTimeout,
+		)
 	}
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
@@ -184,14 +249,48 @@ func normalizeClientConfig(
 		dial: nativews.DialOptions{
 			HTTPClient: &http.Client{
 				Transport: transport,
+				CheckRedirect: func(*http.Request, []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
 			},
 			HTTPHeader:      headers,
 			Subprotocols:    subprotocols,
 			CompressionMode: compression,
 		},
-		url:        target,
-		maxMessage: maximum,
+		url:              target,
+		maxMessage:       maximum,
+		handshakeTimeout: config.HandshakeTimeout,
 	}, nil
+}
+
+func normalizeAuthorization(value string, allowAnonymous bool) (string, error) {
+	if value == "" {
+		if allowAnonymous {
+			return "", nil
+		}
+		return "", errors.New(
+			"construct WebSocket client: authorization is required unless anonymous access is explicit",
+		)
+	}
+	if allowAnonymous {
+		return "", errors.New(
+			"construct WebSocket client: authorization and anonymous access are mutually exclusive",
+		)
+	}
+	if len(value) > maxAuthorizationBytes ||
+		strings.TrimSpace(value) != value ||
+		strings.ContainsAny(value, "\x00\r\n\t") {
+		return "", errors.New(
+			"construct WebSocket client: authorization is malformed",
+		)
+	}
+	scheme, credential, found := strings.Cut(value, " ")
+	if !found || !tokenPattern.MatchString(scheme) || credential == "" || strings.HasPrefix(credential, " ") {
+		return "", errors.New(
+			"construct WebSocket client: authorization is malformed",
+		)
+	}
+	return value, nil
 }
 
 func normalizeMessageLimit(limit int64) (int64, error) {
@@ -324,10 +423,23 @@ func normalizeURL(
 	); err != nil {
 		return "", nil, err
 	}
+	if parsed.Scheme == "ws" && !loopbackHost(parsed.Hostname()) {
+		return "", nil, errors.New(
+			"construct WebSocket client: insecure ws is restricted to loopback hosts",
+		)
+	}
 	if err := validateURLHost(parsed.Host); err != nil {
 		return "", nil, err
 	}
 	return parsed.String(), parsed, nil
+}
+
+func loopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }
 
 func validateWebSocketScheme(
@@ -443,9 +555,19 @@ func normalizeHeaders(source http.Header) (http.Header, error) {
 	return normalized, nil
 }
 
+func normalizedHeaderBytes(headers http.Header) int {
+	total := 0
+	for name, values := range headers {
+		for _, value := range values {
+			total += len(name) + len(value)
+		}
+	}
+	return total
+}
+
 func isReservedHeader(name string) bool {
 	switch name {
-	case "Connection", "Host", "Origin", "Sec-Websocket-Accept",
+	case "Authorization", "Connection", "Cookie", "Host", "Origin", "Sec-Websocket-Accept",
 		"Sec-Websocket-Extensions", "Sec-Websocket-Key",
 		"Sec-Websocket-Protocol", "Sec-Websocket-Version", "Upgrade":
 		return true
