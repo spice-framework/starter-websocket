@@ -24,3 +24,7 @@ ping, bounded no-context-takeover compression, graceful close, and payload-free
 session observations. Application message codecs, reconnection, delivery
 guarantees, session stores, authorization policy, routers, and HTTP/TLS server
 ownership remain outside this starter and must be composed explicitly.
+
+Release artifacts are produced only from an exact tagged commit under the
+contract in [`releasing.md`](releasing.md). A compromised or missing signing
+secret fails a production release; it never falls back to unsigned output.

@@ -39,7 +39,7 @@ func main() {
 }
 
 func execute() int {
-	mode := flag.String("mode", "verify", "verification mode: check, compatibility, fmt, or verify")
+	mode := flag.String("mode", "verify", "verification mode: check, compatibility, fmt, verify, or verify-release")
 	compatibilityLine := flag.String("line", "all", "Spice compatibility line: minimum, current, or all")
 	flag.Parse()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
@@ -69,7 +69,7 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 		return prepareDependencies(ctx, root)
 	}}
 	preparationLine := compatibilityLine
-	if mode == "verify" {
+	if mode == "verify" || mode == "verify-release" {
 		preparationLine = "all"
 	}
 	compatibilityDependencies := step{"Spice compatibility preparation", func() error {
@@ -92,7 +92,7 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 		}
 	case "fmt":
 		steps = []step{{"formatting", func() error { return format(ctx, root, true) }}}
-	case "verify":
+	case "verify", "verify-release":
 		steps = []step{
 			identity,
 			dependencies,
@@ -106,6 +106,11 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 			{"coverage", func() error { return coverage(ctx, root) }},
 			{"Spice core compatibility", func() error { return coreCompatibility(ctx, root, "all") }},
 			{"offline vendor", func() error { return offline(ctx, root) }},
+		}
+		if mode == "verify-release" {
+			steps = append(steps, step{"deterministic release rehearsal", func() error {
+				return releaseRehearsal(ctx, root)
+			}})
 		}
 	default:
 		return fmt.Errorf("unknown mode %q", mode)
@@ -708,6 +713,47 @@ func offline(ctx context.Context, root string) error {
 		return err
 	}
 	return command(ctx, root, environment, "go", "build", "-trimpath", "./...")
+}
+
+func releaseRehearsal(ctx context.Context, root string) error {
+	parent, err := os.MkdirTemp("", "starter-websocket-release-rehearsal-*")
+	if err != nil {
+		return fmt.Errorf("create release rehearsal root: %w", err)
+	}
+	defer removeTree(parent)
+	outputs := []string{filepath.Join(parent, "first"), filepath.Join(parent, "second")}
+	for _, outputDir := range outputs {
+		if runErr := command(
+			ctx,
+			root,
+			nil,
+			"go",
+			"run",
+			"./cmd/starter-websocket-release",
+			"-rehearsal",
+			"-version=v0.0.0-rehearsal",
+			"-output="+outputDir,
+		); runErr != nil {
+			return runErr
+		}
+	}
+	first, err := treeDigests(outputs[0])
+	if err != nil {
+		return err
+	}
+	second, err := treeDigests(outputs[1])
+	if err != nil {
+		return err
+	}
+	if !maps.Equal(first, second) {
+		return errors.New("identical unsigned release rehearsals produced different artifacts")
+	}
+	for _, forbidden := range []string{"checksums.txt.pem", "checksums.txt.sig"} {
+		if _, found := first[forbidden]; found {
+			return fmt.Errorf("unsigned release rehearsal produced %s", forbidden)
+		}
+	}
+	return nil
 }
 
 func toolPath(ctx context.Context, root, name string) (string, error) {

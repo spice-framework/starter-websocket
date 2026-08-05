@@ -1,4 +1,4 @@
-.PHONY: check compatibility fmt verify
+.PHONY: check compatibility fmt verify verify-release
 
 check:
 	go run ./internal/qualitygate -mode=check
@@ -12,3 +12,5 @@ fmt:
 verify:
 	go run ./internal/qualitygate -mode=verify
 
+verify-release:
+	go run ./internal/qualitygate -mode=verify-release
