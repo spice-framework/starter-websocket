@@ -39,7 +39,7 @@ func main() {
 }
 
 func execute() int {
-	mode := flag.String("mode", "verify", "verification mode: check, compatibility, fmt, verify, or verify-release")
+	mode := flag.String("mode", "verify", "verification mode: check, compatibility, fmt, release-parity, verify, or verify-release")
 	compatibilityLine := flag.String("line", "all", "Spice compatibility line: minimum, current, or all")
 	flag.Parse()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
@@ -78,6 +78,9 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 	formatting := step{"formatting", func() error { return format(ctx, root, false) }}
 	modules := step{"module and vendor", func() error { return checkModule(ctx, root) }}
 	vet := step{"go vet", func() error { return command(ctx, root, nil, "go", "vet", "./...") }}
+	release := step{"central and retained release parity", func() error {
+		return releaseParity(ctx, root)
+	}}
 	var steps []step
 	switch mode {
 	case "check":
@@ -92,6 +95,8 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 		}
 	case "fmt":
 		steps = []step{{"formatting", func() error { return format(ctx, root, true) }}}
+	case "release-parity":
+		steps = []step{identity, release}
 	case "verify", "verify-release":
 		steps = []step{
 			identity,
@@ -108,9 +113,7 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 			{"offline vendor", func() error { return offline(ctx, root) }},
 		}
 		if mode == "verify-release" {
-			steps = append(steps, step{"deterministic release rehearsal", func() error {
-				return releaseRehearsal(ctx, root)
-			}})
+			steps = append(steps, release)
 		}
 	default:
 		return fmt.Errorf("unknown mode %q", mode)
@@ -124,7 +127,7 @@ func run(ctx context.Context, root, mode, compatibilityLine string) error {
 		output.Printf("<== %s passed in %s", current.name, time.Since(started).Round(time.Millisecond))
 	}
 	output.Print("==> all verification passed")
-	return nil
+	return requireReleaseTool(ctx, root)
 }
 
 func prepareDependencies(ctx context.Context, root string) error {
@@ -713,47 +716,6 @@ func offline(ctx context.Context, root string) error {
 		return err
 	}
 	return command(ctx, root, environment, "go", "build", "-trimpath", "./...")
-}
-
-func releaseRehearsal(ctx context.Context, root string) error {
-	parent, err := os.MkdirTemp("", "starter-websocket-release-rehearsal-*")
-	if err != nil {
-		return fmt.Errorf("create release rehearsal root: %w", err)
-	}
-	defer removeTree(parent)
-	outputs := []string{filepath.Join(parent, "first"), filepath.Join(parent, "second")}
-	for _, outputDir := range outputs {
-		if runErr := command(
-			ctx,
-			root,
-			nil,
-			"go",
-			"run",
-			"./cmd/starter-websocket-release",
-			"-rehearsal",
-			"-version=v0.0.0-rehearsal",
-			"-output="+outputDir,
-		); runErr != nil {
-			return runErr
-		}
-	}
-	first, err := treeDigests(outputs[0])
-	if err != nil {
-		return err
-	}
-	second, err := treeDigests(outputs[1])
-	if err != nil {
-		return err
-	}
-	if !maps.Equal(first, second) {
-		return errors.New("identical unsigned release rehearsals produced different artifacts")
-	}
-	for _, forbidden := range []string{"checksums.txt.pem", "checksums.txt.sig"} {
-		if _, found := first[forbidden]; found {
-			return fmt.Errorf("unsigned release rehearsal produced %s", forbidden)
-		}
-	}
-	return nil
 }
 
 func toolPath(ctx context.Context, root, name string) (string, error) {

@@ -10,6 +10,7 @@
 | Server transport | Caller-owned TLS-enabled `http.Server`; loopback-only plaintext opt-in |
 | Authentication | Required callback or explicit anonymous mode |
 | Client transport | Verified `wss`; loopback-only `ws` opt-in |
+| Release parity tool | `github.com/spice-framework/development/cmd/spice-dev` at `v0.0.0-20260806034648-1856466df09d` |
 
 `spice-compatibility.json` is the sole compatibility boundary source. Its
 minimum must equal the exact direct Spice requirement in `go.mod`; its current
@@ -28,3 +29,7 @@ ownership remain outside this starter and must be composed explicitly.
 Release artifacts are produced only from an exact tagged commit under the
 contract in [`releasing.md`](releasing.md). A compromised or missing signing
 secret fails a production release; it never falls back to unsigned output.
+
+The pinned central tool renders unsigned rehearsal candidates only. Windows
+and Linux CI compare them with the retained builder under vendor-only offline
+resolution; the retained command remains the signed production authority.
