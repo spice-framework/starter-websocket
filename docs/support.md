@@ -12,7 +12,7 @@
 | Client transport | Verified `wss`; loopback-only `ws` opt-in |
 | Release signer | `github.com/spice-framework/development/cmd/spice-dev` at `v0.0.0-20260806132124-4c308d1b9fda` |
 | Independent verifier | `github.com/spice-framework/toolchain/cmd/spice-library-release-verify` at `v0.0.0-20260806133530-71211498297c` |
-| Public trust anchor | [`security/release/ed25519-public.pem`](../security/release/ed25519-public.pem), SHA-256 `0602e904ecc1e0da5cf09e415e66d47347d6ab638909d3cc475fd2f47cf69d67` |
+| Public trust anchor | [`security/release/ed25519-public.pem`](../security/release/ed25519-public.pem), SHA-256 `58d664089f3cb42262e491ed1a9e0c30b0f5d3722571f8f74c144afee55882b0` |
 
 `spice-compatibility.json` is the sole compatibility boundary source. Its
 minimum must equal the exact direct Spice requirement in `go.mod`; its current
@@ -39,5 +39,8 @@ oracle only.
 
 The committed public trust anchor is reviewed verification material. Its
 fingerprint is the SHA-256 digest of the DER SubjectPublicKeyInfo bytes. The
-anchor does not establish that a matching private signing secret, protected
-release environments, a version tag, or a published release exists.
+matching private key is stored only as the repository Actions secret
+`SPICE_LIBRARY_RELEASE_SIGNING_KEY` and is passed through the caller's one-name
+secret mapping. The protected `release-signing` environment remains the human
+approval gate and contains no signing secret. These configured controls do not
+establish that a version tag or published release exists.

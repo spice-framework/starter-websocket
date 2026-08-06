@@ -25,8 +25,14 @@ func TestCheckReleaseWorkflow(t *testing.T) {
 		{name: "missing job-local publish permission", mutate: func(content string) string {
 			return strings.Replace(content, "    permissions:\n      contents: write\n", "", 1)
 		}, wantErr: true},
-		{name: "forwarded secrets", mutate: func(content string) string {
-			return strings.Replace(content, "    with:\n", "    secrets: inherit\n    with:\n", 1)
+		{name: "missing named signing secret", mutate: func(content string) string {
+			return strings.Replace(content, "    secrets:\n      SPICE_LIBRARY_RELEASE_SIGNING_KEY: ${{ secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY }}\n", "", 1)
+		}, wantErr: true},
+		{name: "inherited unrelated secrets", mutate: func(content string) string {
+			return strings.Replace(content, "    secrets:\n      SPICE_LIBRARY_RELEASE_SIGNING_KEY: ${{ secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY }}", "    secrets: inherit", 1)
+		}, wantErr: true},
+		{name: "wrong signing secret", mutate: func(content string) string {
+			return strings.Replace(content, "secrets.SPICE_LIBRARY_RELEASE_SIGNING_KEY", "secrets.WRONG", 1)
 		}, wantErr: true},
 	}
 	for _, test := range tests {
