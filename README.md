@@ -81,17 +81,16 @@ reproducible vendor contents, and offline builds.
 ```text
 make check
 make compatibility
-make release-parity
+make release-rehearsal
 make verify
 make verify-release
 ```
 
-Release parity runs the exact `spice-dev` tool authorized by `go.mod` and the
-retained repository builder twice each, entirely from `vendor` with network and
-workspace resolution disabled. It requires byte-identical source archives,
-fully drains and bounds their gzip/tar streams, rejects hidden data and extra
-members, requires equivalent SBOM facts, verifies canonical checksum files,
-and forbids rehearsal signatures on Windows and Linux.
+Release rehearsal runs the exact `spice-dev` tool authorized by `go.mod`
+twice from one inert plan, entirely from `vendor` with network and workspace
+resolution disabled. It requires byte-identical outputs, canonical checksums,
+central-renderer SPDX provenance, and no rehearsal signatures on Windows and
+Linux.
 
 See [`docs/dependency-review.md`](docs/dependency-review.md) and
 [`docs/support.md`](docs/support.md).
@@ -105,6 +104,7 @@ build system. Production mode requires a clean checkout, exact tag, and
 protected signing key; an explicit unsigned rehearsal is available for local
 proof. See [`docs/releasing.md`](docs/releasing.md) for the artifact and trust
 contract.
-The retained repository builder and signed production workflow remain the
-release authority while the centrally rendered unsigned candidate is held to
-the dual-builder parity contract.
+The protected central workflow is the sole release authority. It validates the
+candidate without credentials, renders and signs with immutable trusted code,
+authenticates the result with an independent verifier, and publishes only after
+separate protected approvals.

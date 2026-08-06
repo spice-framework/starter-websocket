@@ -33,9 +33,8 @@ contract in [`releasing.md`](releasing.md). A compromised or missing signing
 secret fails a production release; it never falls back to unsigned output.
 
 The pinned central signer and independent verifier are the protected production
-path. Windows and Linux CI still compare the central renderer with the retained
-builder under vendor-only offline resolution; the retained command is a parity
-oracle only.
+path. Windows and Linux CI render the same inert central plan twice under
+vendor-only offline resolution and require byte-identical unsigned artifacts.
 
 The committed public trust anchor is reviewed verification material. Its
 fingerprint is the SHA-256 digest of the DER SubjectPublicKeyInfo bytes. The
