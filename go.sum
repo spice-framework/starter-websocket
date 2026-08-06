@@ -1,6 +1,10 @@
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/spice-framework/development v0.0.0-20260806034648-1856466df09d h1:MUguMzdLI5EGpLnvCBtbRf07rG8vubEZ0YQwfWvuvnE=
-github.com/spice-framework/development v0.0.0-20260806034648-1856466df09d/go.mod h1:0lIxjVtv+p4iTrvLJm05OjimS2MSrIqM1xPR7Q0GHEg=
-github.com/spice-framework/spice v0.0.0-20260805175412-383c17744300 h1:cqHN/VvCqhwGqj8kR+2XAev9PVSDOnW7AtkkI88XbwM=
-github.com/spice-framework/spice v0.0.0-20260805175412-383c17744300/go.mod h1:823ZmaopXc+f3ASWbIJL26fEXl1HP7lpyO0x5tE74tE=
+github.com/spice-framework/development v0.0.0-20260806052122-9025218a91c0 h1:b+QugHe9iGyDMbE+YueQIK2Q/JjAWw7f3BF/X3YplrI=
+github.com/spice-framework/development v0.0.0-20260806052122-9025218a91c0/go.mod h1:0lIxjVtv+p4iTrvLJm05OjimS2MSrIqM1xPR7Q0GHEg=
+github.com/spice-framework/spice v0.0.0-20260805222830-a2ecd56df246 h1:IAPcr8bmwyeNQWME5bUWg/NvDVGoBJY+TRumFXMPXR8=
+github.com/spice-framework/spice v0.0.0-20260805222830-a2ecd56df246/go.mod h1:dBZV5UZcbY6pzhfGNtvAwQIJ8YsFna+jf1SAlmukJfk=
+github.com/spice-framework/toolchain v0.0.0-20260806054457-a83d9b58034c h1:73YMuiirxQEEgdytN47xTFDtTWOoNdW7kSS+IV/WaHc=
+github.com/spice-framework/toolchain v0.0.0-20260806054457-a83d9b58034c/go.mod h1:/U0xhEiz4xGpiCCS560gjgDiixDh5lR4NXVbVPmrmh8=
+golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=
+golang.org/x/mod v0.38.0/go.mod h1:V6Xz0pq8TQ3dGqVQ1FVHuelZpAL0uNhSkk9ogYP3c40=
