@@ -147,7 +147,7 @@ func prepareDependencies(ctx context.Context, root string) error {
 	if err := networkCommand(ctx, root, "-C", "tools", "mod", "tidy", "-diff"); err != nil {
 		return err
 	}
-	return nil
+	return checkReleaseWorkflow(root)
 }
 
 func checkIdentity(ctx context.Context, root string) error {

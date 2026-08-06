@@ -27,23 +27,26 @@ absolute checkout path. Construction fails when committed module selection,
 checksums, and vendored versions or replacements disagree; the builder does
 not rely on an earlier verifier to detect a stale dependency graph.
 
-## Production ceremony
+## Protected production ceremony
 
-Production mode fails unless all of these conditions hold:
+The pinned central workflow validates the exact canonical tag and commit,
+repeats `make verify-release` without credentials, renders deterministic
+artifacts, signs them, and passes them to a separate verifier before publishing.
+The retained repository builder is not part of production.
 
-1. `-version` is canonical, v-prefixed SemVer.
-2. the checkout is clean, including untracked files;
-3. the named tag resolves exactly to `HEAD`;
-4. an Ed25519 private key is supplied;
-5. any explicit source epoch equals the `HEAD` commit epoch; and
-6. the output directory does not already exist.
+This repository must own a distinct user-generated Ed25519 key. Derive and
+review its public half, then commit it as
+`security/release/ed25519-public.pem`. Store only the private key as
+`SPICE_LIBRARY_RELEASE_SIGNING_KEY` in the protected `release-signing`
+environment. Configure a separate protected `release-publish` environment for
+the write-capable final job. Both environments should require the repository's
+designated reviewers.
 
-The tag workflow runs `make verify-release`, materializes the protected
-`STARTER_WEBSOCKET_RELEASE_SIGNING_KEY` secret with owner-only permissions, invokes
-the repository command, removes the key even after failure, and publishes only
-the newly created `dist` files. The workflow never prints the key. Creating or
-rotating that repository secret and pushing a release tag are separate human
-release-authority actions; no development task should manufacture either.
+Do not create or push a release tag until the public anchor, secret, and both
+protected environments are configured. The caller forwards no secrets; the
+central signing job can read only the secret attached to its named environment.
+The workflow fails closed on a missing key, an anchor mismatch, a moved tag, or
+independent verification failure.
 
 ## Unsigned dual-builder rehearsal
 
@@ -54,8 +57,8 @@ and the retained repository builder twice each with `GOWORK=off`,
 the central tool for a read-only plan, then renders the plan without resolving
 an ambient workspace or downloading a module.
 
-The central renderer is the migration candidate. The retained repository
-builder remains both the parity oracle and the production signer:
+The central signer is the protected production path. The retained repository
+builder remains only the parity oracle:
 
 ```text
 make release-parity
@@ -86,9 +89,8 @@ is identical. The parity gate fails closed on any extra artifact, dependency
 drift, malformed or noncanonical checksum, or undocumented SBOM difference.
 
 `make verify-release` executes this dual-builder rehearsal after the complete
-repository verification contract. The tag workflow and production ceremony
-above deliberately continue to invoke `cmd/starter-websocket-release` and emit
-its signed artifacts until signing authority is migrated in a separate review.
+repository verification contract. The retained command stays in the repository
+for that proof but is not called by the production workflow.
 ## Consumer verification
 
 With OpenSSL 3 and GNU-compatible checksum tooling:
@@ -99,10 +101,8 @@ openssl pkeyutl -verify -pubin -inkey checksums.txt.pem \
   -rawin -in checksums.txt -sigfile checksums.txt.sig
 ```
 
-Until a separately reviewed Ed25519 public-key fingerprint is pinned in this
-repository, GitHub's protected `spice-framework/starter-websocket` release channel
-and immutable tag are the authenticity anchor. A public key bundled beside its
-own signature proves only artifact-set consistency, not independent identity.
-Consumers requiring an independent anchor must pin and compare the reviewed
-fingerprint before trusting the signature. The project must not describe the
-bundled key alone as proof of publisher authenticity.
+Consumers must authenticate the signature with the reviewed committed
+`security/release/ed25519-public.pem`, not an untrusted key downloaded beside
+the release. The central signer refuses a private key that does not match that
+anchor, and the independent verifier authenticates the complete artifact set
+before the protected publish job receives it.
