@@ -10,7 +10,7 @@
 | Server transport | Caller-owned TLS-enabled `http.Server`; loopback-only plaintext opt-in |
 | Authentication | Required callback or explicit anonymous mode |
 | Client transport | Verified `wss`; loopback-only `ws` opt-in |
-| Release signer | `github.com/spice-framework/development/cmd/spice-dev` at `v0.0.0-20260806052122-9025218a91c0` |
+| Release signer | `github.com/spice-framework/development/cmd/spice-dev` at `v0.0.0-20260806121906-963bb6676069` |
 | Independent verifier | `github.com/spice-framework/toolchain/cmd/spice-library-release-verify` at `v0.0.0-20260806054457-a83d9b58034c` |
 
 `spice-compatibility.json` is the sole compatibility boundary source. Its

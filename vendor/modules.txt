@@ -5,7 +5,7 @@ github.com/coder/websocket/internal/bpool
 github.com/coder/websocket/internal/errd
 github.com/coder/websocket/internal/util
 github.com/coder/websocket/internal/wsjs
-# github.com/spice-framework/development v0.0.0-20260806052122-9025218a91c0
+# github.com/spice-framework/development v0.0.0-20260806121906-963bb6676069
 ## explicit; go 1.26.0
 github.com/spice-framework/development/cmd/spice-dev
 github.com/spice-framework/development/internal/bootstrap
