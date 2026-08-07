@@ -1,5 +1,7 @@
 # Spice WebSocket starter
 
+Unified documentation: [spiceframework.dev/integrations/websocket](https://spiceframework.dev/integrations/websocket/).
+
 `github.com/spice-framework/starter-websocket` is the independently versioned,
 opt-in RFC 6455 client and server integration for Spice applications. It wraps
 `github.com/coder/websocket` with fail-closed transport, authentication, origin,
