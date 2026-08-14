@@ -74,7 +74,7 @@ the package alone has no runtime effect. Existing consumers migrate from
 `github.com/spice-framework/starter-websocket`; constructor semantics remain
 ordinary Go and require no runtime Spice compiler.
 
-Development and verification require exactly Go 1.26.5. The machine-readable
+Development and verification require exactly Go 1.26.6. The machine-readable
 [`spice-compatibility.json`](spice-compatibility.json) records the exact minimum
 and current Spice core lines. The repository gate proves both lines, real local
 TLS behavior, race safety, an 85% coverage floor, security analysis,

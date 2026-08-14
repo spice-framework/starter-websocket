@@ -2,11 +2,11 @@ module github.com/spice-framework/starter-websocket
 
 go 1.26.0
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/spice-framework/spice v0.0.0-20260805222830-a2ecd56df246
+	github.com/spice-framework/spice v0.1.0-preview.4.0.20260814014712-5f535e696300
 )
 
 require (

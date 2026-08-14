@@ -1,5 +1,5 @@
 /.tmp/
+/.spice/cache/
 /coverage.out
 /dist/
 /dist-rehearsal/
-

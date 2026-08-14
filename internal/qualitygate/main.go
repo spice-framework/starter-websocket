@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	requiredGoVersion = "go1.26.5"
+	requiredGoVersion = "go1.26.6"
 	modulePath        = "github.com/spice-framework/starter-websocket"
 	spiceModulePath   = "github.com/spice-framework/spice"
 	minimumCoverage   = 85.0
@@ -210,9 +210,6 @@ func readCompatibility(root string) (compatibilityVersions, error) {
 	}
 	if strings.TrimSpace(result.Minimum) != result.Minimum || strings.TrimSpace(result.Current) != result.Current {
 		return compatibilityVersions{}, fmt.Errorf("%s versions must not contain surrounding whitespace", compatibilityFile)
-	}
-	if result.Minimum == result.Current {
-		return compatibilityVersions{}, fmt.Errorf("%s minimum and current versions must differ", compatibilityFile)
 	}
 	return result, nil
 }

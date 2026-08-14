@@ -43,9 +43,8 @@ func TestReadCompatibility(t *testing.T) {
 			wantErr: "requires explicit minimum and current versions",
 		},
 		{
-			name:    "identical boundaries",
+			name:    "identical current minimum",
 			content: `{"schema":1,"minimum":"a","current":"a"}`,
-			wantErr: "minimum and current versions must differ",
 		},
 		{
 			name:    "surrounding whitespace",

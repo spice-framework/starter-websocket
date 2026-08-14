@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "kind": "starter",
+  "name": "websocket",
+  "module": "github.com/spice-framework/starter-websocket",
+  "spiceCompatibility": {
+    "minimum": "v0.1.0-preview.4.0.20260814014712-5f535e696300",
+    "current": "v0.1.0-preview.4.0.20260814014712-5f535e696300"
+  },
+  "capabilities": [
+    "web.websocket.client",
+    "web.websocket.server"
+  ],
+  "autoConfigurationPackages": [
+    "github.com/spice-framework/starter-websocket"
+  ],
+  "compilerTools": [
+    "github.com/spice-framework/toolchain"
+  ],
+  "publicPackages": [
+    "github.com/spice-framework/starter-websocket"
+  ],
+  "documentation": [
+    "README.md"
+  ]
+}

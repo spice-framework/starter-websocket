@@ -550,7 +550,7 @@ func TestManifest(t *testing.T) {
 		spec.Dependencies[0].Version != "v1.8.15" {
 		t.Fatalf("Manifest() = %#v", spec)
 	}
-	if err := manifest.Compatible(spicestarter.APIVersion, "go1.26.5"); err != nil {
+	if err := manifest.Compatible(spicestarter.APIVersion, "go1.26.6"); err != nil {
 		t.Fatalf("Compatible() error = %v", err)
 	}
 	content, err := manifest.JSON()
